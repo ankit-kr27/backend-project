@@ -35,40 +35,46 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
         # return response
     */
 
-    // USER DETAILS
+// USER DETAILS
     const {fullName, username, password, email} = req.body;
     
-    // VALIDATION
+// VALIDATION
     if(
         [fullName, username, password, email].some(field => field?.trim() === "")   // checks if any of the fields return true or not
     ){
         throw new ApiError(400, "All fields are required!")
     }
 
-    // IF USER EXISTS
-    const existedUser = User.findOne(   // User can directly interact with mongoDB as it has been created with the help of monngoose
+// IF USER EXISTS
+    const existedUser = await User.findOne(   // User can directly interact with mongoDB as it has been created with the help of monngoose
         {  // email or below
             $or: [{ username }, { email }]    // returns an array of users existing in the db with same username or email fields
         }
     )
-
+        // console.log("Existed User: ", existedUser);
     if(existedUser){
         throw new ApiError(409, "User with username or email already exists");
     }
 
-    // CHECK FOR IMAGES
+// FETCH IMAGE LOCAL PATH 
      // as express gives us access to req.body(), multer(middleware) adds on to give us the access of other fields such as files(in case of multer)
-    const avatarLocalPath = req.files?.avatar[0]?.path      // will return the path of the file as uploaded by multer on to the server    
-    const coverImageLocalPath = req.files?.coverImage[0]?.path      // optional chaining
+     let avatarLocalPath;
+     if(req.files && req.files.avatar)
+        avatarLocalPath = req.files.avatar[0]?.path      // will return the path of the file as uploaded by multer on to the server 
 
-    // CHECK IF AVATAR EXISTS
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path      // optional chaining (this line causes error)
+    let coverImageLocalPath
+    if(req.files && req.files.coverImage)
+        coverImageLocalPath = req.files.coverImage[0]?.path
+
+// CHECK IF AVATAR EXISTS
     if(!avatarLocalPath){
         throw new ApiError(400, "Avatar is required")
     }
 
     // UPLOAD THEM TO CLOUDINARY
     const avatar = await uploadOnCloudinary(avatarLocalPath)   // that's why we made this async
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);      // if it doesn't exist, cloudinary won't give an error but rather returns null.
     if(!avatar){
         throw new ApiError(400, "Avatar is required")
     }
@@ -78,7 +84,7 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
         fullName,
         avatar: avatar.url,
         coverImage: coverImage?.url || "",   // if coverImage exists then extract it otherwise let it be empty
-        email,
+        email: email.toLowerCase(),
         password,
         username: username.toLowerCase()
     })

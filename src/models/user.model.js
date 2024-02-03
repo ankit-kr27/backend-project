@@ -41,7 +41,7 @@ const userSchema = new Schema({
     },
     password: {
         type: String,
-        required: [true, 'Password is required']    // with true field we can give a custom error message
+        required: [true, 'Password is required']    // with boolean field we can give a custom error message
     },
     refreshToken: {
         type: String
@@ -69,6 +69,7 @@ userSchema.methods.generateAccessToken = function(){    // no need for async fun
             email: this.email,
             username: this.username,
             fullName: this.fullName
+            // _id is the only necessary field, others are not.
         },
         process.env.ACCESS_TOKEN_SECRET,     // Object
         {   // passed in object

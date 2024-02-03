@@ -17,6 +17,24 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 //     }
 // }
 
+const generateAccessAndRefreshTokens = async (userId)=>{    // generating them only once and using them again and again.
+    try{
+        const user = await User.findById(userId);
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        // access token, we give to the user only but we store the refresh token in the db as well, so the user don't need to login again and again.
+
+        user.refreshToken = refreshToken;
+        await user.save({validateBeforeSave: false});     // as we are just saving for a new field we don't need to validate anything else. (We know what we are doing)
+
+        return {accessToken, refreshToken};
+
+    }catch(err){
+        throw new ApiError(500, "Something went wrong while generating access and refresh tokens");
+    }
+}
+
 const registerUser = asyncHandler(async (req, res)=>{   // this will execute the provided async function with the help of promise
     // res.status(200).json({
     //     message: "ok"
@@ -48,7 +66,7 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
 // IF USER EXISTS
     const existedUser = await User.findOne(   // User can directly interact with mongoDB as it has been created with the help of monngoose
         {  // email or below
-            $or: [{ username }, { email }]    // returns an array of users existing in the db with same username or email fields
+            $or: [{ username }, { email }]    // returns an object of users existing in the db with same username or email fields
         }
     )
         // console.log("Existed User: ", existedUser);
@@ -83,13 +101,13 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
     const user = await User.create({    // db entry will take time that's why await
         fullName,
         avatar: avatar.url,
-        coverImage: coverImage?.url || "",   // if coverImage exists then extract it otherwise let it be empty
+        coverImage: coverImage?.url || "",   // if coverImage exists then extract it otherwise let it be an empty string
         email: email.toLowerCase(),
         password,
         username: username.toLowerCase()
     })
 
-    const createdUser = await User.findById(user._id).select(
+    const createdUser = await User.findById(user._id).select(   // directly checking from the db if the user has been created or not.
         "-password -refreshToken"   // by default every field is selected
     )
 
@@ -98,11 +116,108 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
     }
 
     return res.status(201).json(
-        new ApiResponse(200, createdUser, "User registered successfully")
+        new ApiResponse(200, createdUser, "User registered successfully")   // status  code | data | message
     )
 })
 
-export {registerUser}
+// *** LOGIN USER ***
+const loginUser = asyncHandler(async (req, res)=>{
+    /* 
+        req -> data
+        find the user
+        password check
+        generate access and refresh token
+        send access token and ref. token via cookies
+    */
+
+    const {email, username, password} = req.body;
+    if(!email && !username){
+        throw new ApiError(400, "username or email is required");
+    }
+
+
+    const user = await User.findOne({
+        $or: [{username}, {email}]  // $or is provided by mongoDB and array of objects is passed
+    })
+
+    if(!user){
+        throw new ApiError(404, "User does not exist")
+    }
+// User is an object of mongoose(which provides us methods such as findOne etc; it refers to the model) while user is the object provided by mongodb(which is an individual instance of the User model)
+    const isPasswordValid = await user.isPasswordCorrect(password)      
+    if(!isPasswordValid){
+        throw new ApiError(401, "Invalid user credentials")
+    }
+
+    // now if finally the password given is also correct then we'll create the access and the refresh token. (as it is done oftenly, we'll create a separate function for that)
+
+    const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
+
+    const loggedInUser = await User.findById(user._id).select(
+        "-password -refreshToken"   // no need to send these into the response
+    );     
+    // new user is different from previous user as it contains the refresh token, which was generated and added after the previous call.
+    
+    // cookie options
+    const options = { // by default they are modifiable by frontend also  
+        httpOnly: true,
+        secure: true
+        // but after these they are only server modifiable
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options) 
+    .json(
+        new ApiResponse(    // status code | data | message
+            200, 
+            {   // data
+                user: loggedInUser, accessToken, refreshToken   // passing accessToken and refreshToken in data also as mobile apps doesn't have access to cookies
+            },
+            "User logged in successfully"
+        )
+    )
+})
+
+const logoutUser = asyncHandler(async (req, res)=>{
+    // clear cookies
+    // remove access and refresh token
+
+    // There is an issue while logging out that how can we get the access of user, do we have to again make a db call? but it will allow to logout anyone?
+    // for that we will create our own middleware, and req will have the access of cookies
+    
+    // Finding the user and updating the refreshToken
+    User.findByIdAndUpdate(
+        await req.user._id,   // find by this id
+        {               // what to update
+            $set: {
+                refreshToken: undefined,
+            }
+        },
+        {
+            new: true   // this will return the new updated user
+        }
+    )
+
+    // Clearing the cookies
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User Logged Out"))
+})
+
+export {
+    registerUser,
+    loginUser, 
+    logoutUser
+}
 
 
 

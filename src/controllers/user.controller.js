@@ -3,6 +3,7 @@ import {ApiError} from '../utils/ApiError.js'
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.service.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
 // const registerUser = (req, res, next)=>{
 //     try{
@@ -23,7 +24,7 @@ const generateAccessAndRefreshTokens = async (userId)=>{    // generating them o
         const accessToken = user.generateAccessToken();
         const refreshToken = user.generateRefreshToken();
 
-        // access token, we give to the user only but we store the refresh token in the db as well, so the user don't need to login again and again.
+        // we don't store the access token, we give to the user only but we store the refresh token in the db as well, so the user don't need to login again and again.
 
         user.refreshToken = refreshToken;
         await user.save({validateBeforeSave: false});     // as we are just saving for a new field we don't need to validate anything else. (We know what we are doing)
@@ -55,6 +56,7 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
 
 // USER DETAILS
     const {fullName, username, password, email} = req.body;
+    // console.log(fullName, username, password, email);
     
 // VALIDATION
     if(
@@ -76,8 +78,8 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
 
 // FETCH IMAGE LOCAL PATH 
      // as express gives us access to req.body(), multer(middleware) adds on to give us the access of other fields such as files(in case of multer)
-     let avatarLocalPath;
-     if(req.files && req.files.avatar)
+    let avatarLocalPath;
+    if(req.files && req.files.avatar)
         avatarLocalPath = req.files.avatar[0]?.path      // will return the path of the file as uploaded by multer on to the server 
 
     // const coverImageLocalPath = req.files?.coverImage[0]?.path      // optional chaining (this line causes error)
@@ -115,7 +117,9 @@ const registerUser = asyncHandler(async (req, res)=>{   // this will execute the
         throw new ApiError(500, "Something went wrong while registering the user")
     }
 
-    return res.status(201).json(
+    return res
+    .status(201)
+    .json(
         new ApiResponse(200, createdUser, "User registered successfully")   // status  code | data | message
     )
 })
@@ -131,10 +135,11 @@ const loginUser = asyncHandler(async (req, res)=>{
     */
 
     const {email, username, password} = req.body;
+    // console.log(email, username, password)
+
     if(!email && !username){
         throw new ApiError(400, "username or email is required");
     }
-
 
     const user = await User.findOne({
         $or: [{username}, {email}]  // $or is provided by mongoDB and array of objects is passed
@@ -144,13 +149,15 @@ const loginUser = asyncHandler(async (req, res)=>{
         throw new ApiError(404, "User does not exist")
     }
 // User is an object of mongoose(which provides us methods such as findOne etc; it refers to the model) while user is the object provided by mongodb(which is an individual instance of the User model)
-    const isPasswordValid = await user.isPasswordCorrect(password)      
+    const isPasswordValid = await user.isPasswordCorrect(password)  
+    // schema method can be called for an instance of user
     if(!isPasswordValid){
         throw new ApiError(401, "Invalid user credentials")
     }
 
     // now if finally the password given is also correct then we'll create the access and the refresh token. (as it is done oftenly, we'll create a separate function for that)
 
+    // AT and RT are generated for a particular user and only the RT is saved into the db.
     const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
 
     const loggedInUser = await User.findById(user._id).select(
@@ -173,7 +180,9 @@ const loginUser = asyncHandler(async (req, res)=>{
         new ApiResponse(    // status code | data | message
             200, 
             {   // data
-                user: loggedInUser, accessToken, refreshToken   // passing accessToken and refreshToken in data also as mobile apps doesn't have access to cookies
+                user: loggedInUser, 
+                accessToken, 
+                refreshToken   // passing accessToken and refreshToken in data also as mobile apps doesn't have access to cookies
             },
             "User logged in successfully"
         )
@@ -199,11 +208,13 @@ const logoutUser = asyncHandler(async (req, res)=>{
             new: true   // this will return the new updated user
         }
     )
+    // We, got got req.user._id via auth middleware. It helped us to identify which user to log out by putting the in session user into the req. 
+    // it got the user by fetching the current session AT from the cookies. Then retrieved the payload via jwt.verify. it gave us the _id.
 
     // Clearing the cookies
     const options = {
-        httpOnly: true,
-        secure: true
+        httpOnly: true, // prevents the client side to access the cookie
+        secure: true    // sends the cookie in only encrypted form
     }
 
     return res
@@ -213,10 +224,62 @@ const logoutUser = asyncHandler(async (req, res)=>{
     .json(new ApiResponse(200, {}, "User Logged Out"))
 })
 
+const refreshAccessToken = asyncHandler(async (req, res)=>{
+    /* 
+        We've added access and refresh token to the cookies
+        If access token get's expired, we can fetch the refresh token from the cookies and create new ones.
+    */
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    if(!incomingRefreshToken){
+        throw new ApiError(401, "Unauthorized request");
+    }
+
+    try {
+        const decodedToken = jwt.verify(
+            incomingRefreshToken,
+            process.env.REFRESH_TOKEN_SECRET
+        ) 
+        
+        const user = await User.findById(decodedToken?._id);
+    
+        if(!user){
+            throw new ApiError(401, "Invalid refresh token");
+        }
+    
+        // Now we'll check if the incomingRefreshToken and the user we found by decoding the token(and getting the _id) has the same refresh token or not
+    
+        if(incomingRefreshToken !== user?.refreshToken){
+            throw new ApiError(401, "Refresh token is expired or used")
+        }
+    
+        const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
+    
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {accessToken, refreshToken},
+                "Access token refreshed successfully"
+            )
+        )
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid refresh token")
+    }
+})
+
 export {
     registerUser,
     loginUser, 
-    logoutUser
+    logoutUser, 
+    refreshAccessToken
 }
 
 

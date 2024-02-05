@@ -1,4 +1,4 @@
-// This middleware will verify whether the user exist or not
+// Before logging out
 // first we fetch the accessToken from the cookie or the header
 // if token exist -> a user is logged in, else -> no user is logged in.
 // decode the token to fetch the payload

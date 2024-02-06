@@ -5,6 +5,7 @@ import { verifyJWT } from '../middlewares/auth.middleware.js';
 
 const router = Router()
 
+// ROUTES
 router.route("/register").post(
     upload.fields([     // injecting middleware before actual controller
         {   // two objects: avatar, coverImage
@@ -23,7 +24,6 @@ router.route("/login").post(loginUser)
 
 // secured routes
 router.route("/logout").post(verifyJWT, logoutUser)
-// Before logging out 
 router.route("/refresh-token").post(refreshAccessToken)
 
 export default router;

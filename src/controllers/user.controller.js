@@ -231,10 +231,10 @@ const refreshAccessToken = asyncHandler(async (req, res)=>{
     */
     const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
     if(!incomingRefreshToken){
-        throw new ApiError(401, "Unauthorized request");
+        throw new ApiError(401, "Unauthorized request");    // If a user is not holding the refresh token in the cookies, they are not logged in.
     }
 
-    try {
+    try {   // if RT is expired jwt.verify will return an error and will be caught by the block
         const decodedToken = jwt.verify(
             incomingRefreshToken,
             process.env.REFRESH_TOKEN_SECRET
@@ -251,6 +251,7 @@ const refreshAccessToken = asyncHandler(async (req, res)=>{
         if(incomingRefreshToken !== user?.refreshToken){
             throw new ApiError(401, "Refresh token is expired or used")
         }
+        // In case it is verified but is some other token that isn't now being used. Like you logged out and removed both tokens but they are not expired. Incase someone sends that token in request.
     
         const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
     
@@ -351,6 +352,8 @@ const updateUserAvatar = asyncHandler(async (req, res)=>{
         {new: true}
     ).select("-password -refreshToken")
 
+    
+
     return res
     .status(200)
     .json(
@@ -388,6 +391,83 @@ const updateUserCoverImage = asyncHandler(async (req, res)=>{
     )
 })
 
+const getUserChannelProfile = asyncHandler(async (req, res)=>{
+    // when we go to a particular channel, we go the specific url of the channel.
+    // therefore, we'll fetch the details from the params
+    const {username} = req.params;
+
+    if(!username?.trim()){
+        throw new ApiError(400, "Username is missing");
+    }
+
+    const channel = await User.aggregate([  // array of pipelines(objects)
+        {   // this pipeline will return us the user with the same username in an array
+            $match: {
+                username: username?.toLowerCase()
+            }
+        },
+        {   // joining with subscribers field
+            $lookup: {  // performs left join operation to the incoming document
+                from: "subscriptions",  // Model name in db gets converted to lowercase and plural
+                localField: "_id",  // from the incoming document 
+                foreignField: "channel", // we'll select the channel to get the no. of subscribers. channel field itself stores _id
+                as: "subscribers"   
+                // subscribers will be added as a field within each user(incoming document) containing the subscription document who are the subscriber of the user.
+            }
+        },
+        {   // joining with subscribedTo field
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
+                // subscribedTo will be added as a field within the user containing an array of subscription documents who the user is a subscriber of(or has subscribed to)
+            }
+        },
+        {   // adding fields to the incoming document
+            $addFields: {
+                subscriberCount: {
+                    $size: "$subscribers"
+                },
+                channelSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: {$in: [req.user?._id, "$subscribers.subscriber"]},
+                        // am I(req.user?._id) is the list subscribers of the incoming document (user). it checks within the subscriber(object) field of each subscriber.
+                        // in can check for objects as well as arrays
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {   // projection pipeline (showing only selected fields)
+            $project: {
+                fullName: 1,
+                username: 1,
+                subscriberCount: 1,
+                channelSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1,
+            }
+        }
+    ]) // this will return an array 
+
+    if(!channel?.length){
+        throw new ApiError(404, "Channel does not exists")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, channel[0], "User channel fetched successfully")
+    )
+})
+
 export {
     registerUser,
     loginUser, 
@@ -396,7 +476,9 @@ export {
     changeCurrentPassword,
     updateAccountDetails, 
     updateUserAvatar, 
-    updateUserCoverImage
+    updateUserCoverImage,
+    getCurrentUser,
+    getUserChannelProfile
 }
 
 

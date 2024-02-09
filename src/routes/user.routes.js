@@ -42,14 +42,18 @@ router.route("/change-password").post(verifyJWT, changeCurrentPassword);
 router.route("/current-user").get(verifyJWT, getCurrentUser);
 router.route("/update-account").patch(verifyJWT, updateAccountDetails);
 // patch request as we don't need to update everything just a part of it
-router.route("/avatar").patch( 
+router.route("/update-avatar").patch( 
     verifyJWT, 
     upload.single("avatar"), 
     updateUserAvatar
 );
-router.route("/cover-image").patch(verifyJWT, upload.single("coverImage"), updateUserCoverImage);
+router.route("/update-cover-image").patch(
+    verifyJWT, 
+    upload.single("coverImage"), 
+    updateUserCoverImage
+);
 
-router.route("/channel/:username").get(verifyJWT, getUserChannelProfile);   // since passing through params
+router.route("/ch/:username").get(verifyJWT, getUserChannelProfile);   // since passing through params
 
 router.route("/history").get(verifyJWT, getWatchHistory)
 

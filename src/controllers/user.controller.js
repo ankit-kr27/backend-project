@@ -198,11 +198,11 @@ const logoutUser = asyncHandler(async (req, res)=>{
     // for that we will create our own middleware, and req will have the access of cookies
     
     // Finding the user and updating the refreshToken
-    User.findByIdAndUpdate(
-        await req.user._id,   // find by this id
+    await User.findByIdAndUpdate(
+        req.user._id,   // find by this id
         {               // what to update
-            $set: {
-                refreshToken: undefined,
+            $unset: {
+                refreshToken: 1,    // this removes the field from the document
             }
         },
         {
@@ -240,7 +240,7 @@ const refreshAccessToken = asyncHandler(async (req, res)=>{
             incomingRefreshToken,
             process.env.REFRESH_TOKEN_SECRET
         ) 
-        
+
         const user = await User.findById(decodedToken?._id);
     
         if(!user){
@@ -306,8 +306,17 @@ const getCurrentUser = asyncHandler(async (req, res)=>{
 const updateAccountDetails = asyncHandler(async (req, res)=>{
     const {fullName, email} = req.body;     // we are only allowing email and fullName to be updated and not username.
     // We'll write separate controllers for updating coverImage and avatar
-    if(!email || !fullName){
+    if(!(email || fullName)){
         throw new ApiError(400, "All fields are required");
+    }
+
+    if(email){
+        const existingEmail = await User.findOne({
+            email: email
+        })
+        if(existingEmail){
+            throw new ApiError(400, "Email is already used")
+        }
     }
 
     const user = await User.findByIdAndUpdate(
@@ -352,8 +361,6 @@ const updateUserAvatar = asyncHandler(async (req, res)=>{
         },
         {new: true}
     ).select("-password -refreshToken")
-
-    
 
     return res
     .status(200)
@@ -477,7 +484,7 @@ const getWatchHistory = asyncHandler(async (req, res) =>{
         {
             $lookup: {
                 from: "videos",
-                localField: "watchHistory", 
+                localField: "watchHistory",     
                 foreignField: "_id",
                 as: "watchHistory",
                 pipeline: [
@@ -528,27 +535,6 @@ export {
     getUserChannelProfile,
     getWatchHistory
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -18,11 +18,12 @@ app.use(cookieParser())
 // *** Routes import ***
 import userRouter from './routes/user.routes.js'
 import tweetRouter from './routes/tweet.routes.js'
+import playlistRouter from './routes/playlist.routes.js'
 
 // *** Routes declaration ***
 app.use("/api/v1/users", userRouter)   // previously we were writing directly everything in app.js, now we are incorporating middleware to give control to userRouter.
 // This will act as a prefix.
 // URL: http://localhost:8000/api/v1/users/register
 app.use("/api/v1/tweets", tweetRouter)
-
+app.use("/api/v1/playlist", playlistRouter)
 export { app }

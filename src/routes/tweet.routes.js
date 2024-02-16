@@ -8,10 +8,7 @@ router.use(verifyJWT)   // apply verification middleware for all routes in the f
 
 router.route("/create").post(createTweet);
 router.route("/user/:userId").get(getUserTweets);
-router.route("/user").get(getUserTweets);   // for error handling purpose, while the user id is not provided
 router.route("/update/:tweetId").patch(updateTweet)
-router.route("/update").patch(updateTweet)  // for error handling purpose
 router.route("/delete/:tweetId").delete(deleteTweet)
-router.route("/delete").delete(deleteTweet) // for error handling purpose
 
 export default router;

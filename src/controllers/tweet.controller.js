@@ -17,7 +17,7 @@ const createTweet = asyncHandler(async (req, res)=>{
         owner: req.user?._id
     })
 
-    const createdTweet = await Tweet.findOne(tweet._id);
+    const createdTweet = await Tweet.findOne(tweet?._id);
 
     if(!createdTweet){
         throw new ApiError(500, "Something went wrong while creating the tweet");

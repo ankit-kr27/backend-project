@@ -17,14 +17,14 @@ import { User } from '../models/user.model.js'
 
 const createPlaylist = asyncHandler(async (req, res)=>{
     const {name, description} = req.body;
-
+    // console.log(name, description);
     if(!name || !description){
         throw new ApiError(400, "All fields are required");
     }
 
     const playlist = await Playlist.create({
-        name: name,
-        description: description,
+        name: name.trim(),
+        description: description.trim(),
         owner: req.user._id
     })
 
@@ -121,7 +121,7 @@ const getUserPlaylists = asyncHandler(async (req, res)=>{
     const user = await User.findById(userId);
 
     if(!user){
-        throw new ApiError(500, "Cannot find the user");
+        throw new ApiError(404, "User does not exist");
     }
 
     const userPlaylists = await User.aggregate([
@@ -175,7 +175,7 @@ const getUserPlaylists = asyncHandler(async (req, res)=>{
         {
             $project: {
                 owner: 1, 
-                videos: 1
+                playlists: 1
             }
         }
     ])
@@ -202,7 +202,11 @@ const getPlaylistById = asyncHandler(async (req, res)=>{
         throw new ApiError(400, "Missing playlist id");
     }
 
-    const playlist = Playlist.findById(playlistId)  // we could've used aggregation pipelines for the same also
+    if(!isValidObjectId(playlistId)){
+        throw new ApiError(401, "Invalid playlist id")
+    }
+
+    const playlist = await Playlist.findById(playlistId)
     .populate({
         path: "owner",
         select: "username fullName avatar"
@@ -210,6 +214,7 @@ const getPlaylistById = asyncHandler(async (req, res)=>{
     .populate({
         path: "videos",
     })
+      // we could've used aggregation pipelines for the same also
 
     // const playlist = await Playlist.aggregate([
     //     {
@@ -256,7 +261,7 @@ const getPlaylistById = asyncHandler(async (req, res)=>{
     // ])
 
     if(!playlist){
-        throw new ApiError(400, "Invalid playlist id");
+        throw new ApiError(404, "Cannot find the playlist");
     }
 
     return res

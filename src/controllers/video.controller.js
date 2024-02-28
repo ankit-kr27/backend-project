@@ -97,6 +97,7 @@ const getAllVideos = asyncHandler(async (req, res)=>{
     // if query is provided search videos by title or description
     if(query){
         queryConditions.$or = [     // if any of the conditions within the $or array evaluates to true, the document matches the query.
+        // $or field will be added to the object and is to be later evaluated in the find method
             {
                 title: {$regex: query, $options: "i"}   // case insensitive title search
             },
@@ -144,8 +145,8 @@ const getAllVideos = asyncHandler(async (req, res)=>{
     /**
      * Key points to be noted
      * By default we provided the query condition for searching the videos is isPublished: true
-     * if userId exist we shall give the videos where the owner have the same userId
-     * 
+     * if userId exists, we shall give the videos where the owner have the same userId
+     * if query exists, we add $or field to the queryConditions object which will either match the title with the regular expression or the description (if title or decription follows the regular expression of the query or not)
      */
 })
 

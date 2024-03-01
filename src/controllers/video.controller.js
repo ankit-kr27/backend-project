@@ -13,7 +13,6 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.service.js";
-import {v2 as cloudinary} from "cloudinary"
 import { deleteFromCloudinary } from "../utils/cloudinary.service.js";
 
 const publishAVideo = asyncHandler(async (req, res)=>{
@@ -216,8 +215,96 @@ const deleteVideo = asyncHandler(async (req, res)=>{
     )
 })
 
+const updateVideo = asyncHandler(async (req, res)=>{
+    const {videoId} = req.params
+    const localThumbnailPath = req.file?.thumbnail?.path
+
+    if(!videoId){
+        throw new ApiError(400, "Missing videoId")
+    }
+
+    if(!isValidObjectId(videoId)){
+        throw new ApiError(401, "Invalid video id")
+    }
+
+    const video = await Video.findById(videoId)
+
+    if(!video){
+        throw new ApiError(404, "Video doesn't exist");
+    }
+
+    if(video.owner.toString() !== req.user?._id){
+        throw new ApiError(500, "Unauthorized request to update thumbnail")
+    }
+
+    if(!localThumbnailPath){
+        throw new ApiError(400, "Missing thumbnail")
+    }
+
+    const response = await deleteFromCloudinary(video.thumbnail);
+
+    if(!response){
+        throw new ApiError(500, "Something went wrong while deleting thumbnail from cloudinary")
+    }
+
+    const thumbnail = await uploadOnCloudinary(localThumbnailPath);
+
+    if(!thumbnail){
+        throw new ApiError(400, "Thumbnail is required")
+    }
+
+    video.thumbnail = thumbnail.url
+    await video.save({validateBeforeSave: false})
+
+    const updatedVideo = await Video.findById(video._id);
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, updatedVideo, "Video updated successfully")
+    )
+})
+
+const togglePublishStatus = asyncHandler(async (req, res)=>{
+    
+    const {videoId} = req.params
+    
+    if(!videoId){
+        throw new ApiError(400, "Missing videoId")
+    }
+
+    if(!isValidObjectId(videoId)){
+        throw new ApiError(401, "Invalid video id")
+    }
+
+    const video = await Video.findById(videoId)
+
+    if(!video){
+        throw new ApiError(404, "Video doesn't exist");
+    }
+
+    if(video.owner.toString() !== req.user?._id){
+        throw new ApiError(500, "Unauthorized request to toggle status")
+    }
+
+    video.isPublished = !video.isPublished
+
+    await video.save({validateBeforeSave: false})
+
+    const updatedVideo = await Video.findById(videoId)
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, updatedVideo, "publish status toggled successfully")
+    )
+})
+
 export {
     publishAVideo,
     getAllVideos,
-    getVideoById
+    getVideoById,
+    deleteVideo,
+    updateVideo,
+    togglePublishStatus
 }

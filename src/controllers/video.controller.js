@@ -7,12 +7,14 @@
  * toggle publish status
  */
 
+import { isValidObjectId } from "mongoose";
 import { Video } from "../models/video.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.service.js";
 import {v2 as cloudinary} from "cloudinary"
+import { deleteFromCloudinary } from "../utils/cloudinary.service.js";
 
 const publishAVideo = asyncHandler(async (req, res)=>{
     /**
@@ -108,10 +110,11 @@ const getAllVideos = asyncHandler(async (req, res)=>{
         // if the regular expression of query matches the title or description
     }
 
-    // sorting the videos based on uploadDate or views
-    const allowedSortOptions = ["uploadDate", "views"];
+    // structure of queryConditions {isPublished: true, $or: [{title: true/false}, description: true/false]}
 
-    if(sortBy && !allowedSortOptions.includes(sortBy)){
+    // sorting the videos based on uploadDate or views
+
+    if(sortBy && (sortBy !== "uploadDate" && sortBy !== "views")){
         throw new ApiError(400, `Invalid sortBy parameter. Allowed options are ${allowedSortOptions.join(", ")}`)
     }
 
@@ -144,14 +147,77 @@ const getAllVideos = asyncHandler(async (req, res)=>{
 
     /**
      * Key points to be noted
-     * By default we provided the query condition for searching the videos is isPublished: true
+     * By default we provided the query condition for searching the videos is isPublished: true. if no query is passed or event passed this is the necessary condition.
      * if userId exists, we shall give the videos where the owner have the same userId
      * if query exists, we add $or field to the queryConditions object which will either match the title with the regular expression or the description (if title or decription follows the regular expression of the query or not)
      */
 })
 
+const getVideoById =  asyncHandler(async (req, res) =>{
+    const {videoId} = req.params
+
+    if(!videoId){
+        throw new ApiError(400, "video id missing")
+    }
+
+    if(!isValidObjectId(videoId)){
+        throw new ApiError(400, "Invalid video id");
+    }
+
+    const video = await Video.findById(videoId)?.populate({
+        path: "owner",
+        select: "avatar username fullName"
+    })
+
+    if(!video){
+        throw new ApiError(404, "Video doesn't exist");
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, video, "Video fetched successfully")
+    )
+})
+
+const deleteVideo = asyncHandler(async (req, res)=>{
+    const {videoId} = req.params;
+
+    if(!videoId){
+        throw new ApiError(400, "video id missing")
+    }
+
+    if(!isValidObjectId(videoId)){
+        throw new ApiError(400, "Invalid video id");
+    }
+
+    const video = await Video.findById(videoId)
+
+    if(!video){
+        throw new ApiError(404, "Video doesn't exist")
+    }
+
+    if(video.owner.toString() !== req.user?._id.toString()){
+        throw new ApiError(501, "Unauthorized request to delete video")
+    }
+
+    const cloudinaryResponse = await deleteFromCloudinary(video.videoFile, "video")
+
+    if(!cloudinaryResponse){
+        throw new ApiError(500, "Something went wrong while deleting file from cloudinary");
+    }
+
+    await Video.findByIdAndDelete(videoId);
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, {}, "Video deleted successfully")
+    )
+})
+
 export {
     publishAVideo,
     getAllVideos,
-
+    getVideoById
 }

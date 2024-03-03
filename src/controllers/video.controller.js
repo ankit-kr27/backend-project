@@ -163,14 +163,23 @@ const getVideoById =  asyncHandler(async (req, res) =>{
         throw new ApiError(400, "Invalid video id");
     }
 
-    const video = await Video.findById(videoId)?.populate({
-        path: "owner",
-        select: "avatar username fullName"
-    })
+    const video = await Video.findById(videoId)
 
     if(!video){
         throw new ApiError(404, "Video doesn't exist");
     }
+
+    const updatedVideo = await Video.findByIdAndUpdate(
+        video._id,
+        {
+            $set: {views: this.views+1}
+        },
+        {new: true}
+    )
+    ?.populate({
+        path: "owner",
+        select: "avatar username fullName"
+    })
 
     return res
     .status(200)

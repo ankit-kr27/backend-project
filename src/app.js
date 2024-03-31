@@ -22,6 +22,7 @@ import playlistRouter from './routes/playlist.routes.js'
 import likeRouter from './routes/like.routes.js'
 import commentRouter from './routes/comment.routes.js'
 import videoRouter from './routes/video.routes.js'
+import dashboardRouter from './routes/dashboard.routes.js'
 
 // *** Routes declaration ***
 app.use("/api/v1/users", userRouter)   // previously we were writing directly everything in app.js, now we are incorporating middleware to give control to userRouter.
@@ -32,5 +33,6 @@ app.use("/api/v1/playlists", playlistRouter)
 app.use("/api/v1/likes", likeRouter)
 app.use("/api/v1/comments", commentRouter)
 app.use("/api/v1/videos", videoRouter)
+app.use("/api/v1/dashboard", dashboardRouter)
 
 export { app }

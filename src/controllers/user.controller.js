@@ -195,7 +195,7 @@ const logoutUser = asyncHandler(async (req, res)=>{
     // remove access and refresh token
 
     // There is an issue while logging out that how can we get the access of user, do we have to again make a db call? but it will allow to logout anyone?
-    // for that we will create our own middleware, and req will have the access of cookies
+    // for that we will create our own middleware (auth.middleware.js), and req will have the access of cookies
     
     // Finding the user and updating the refreshToken
     await User.findByIdAndUpdate(
@@ -324,7 +324,7 @@ const updateAccountDetails = asyncHandler(async (req, res)=>{
         {
             $set: {
                 fullName: fullName,
-                email
+                email: email || req.user?.email
                 // updating the values both ways
             }
         },
@@ -347,12 +347,7 @@ const updateUserAvatar = asyncHandler(async (req, res)=>{
     }
 
     const user = await User.findById(req.user?._id).select("-password -refreshToken");
-
-    const response = await deleteFromCloudinary(user?.avatar)
-
-    if(!response){
-        throw new ApiError(500, "Error deleting avatar from cloudinary")
-    }
+    const oldAvatarUrl = user?.avatar;
 
     const avatar = await uploadOnCloudinary(avatarLocalPath);
 
@@ -370,6 +365,12 @@ const updateUserAvatar = asyncHandler(async (req, res)=>{
         {new: true}
     ).select("-password -refreshToken")
 
+    const response = await deleteFromCloudinary(oldAvatarUrl);
+
+    if (!response) {
+      throw new ApiError(500, "Error deleting avatar from cloudinary");
+    }
+
     return res
     .status(200)
     .json(
@@ -386,13 +387,7 @@ const updateUserCoverImage = asyncHandler(async (req, res)=>{
 
     const user = await User.findById(req.user?._id).select("-password -refreshToken");
 
-    if(user.coverImage){
-        const response = await deleteFromCloudinary(user.coverImage)
-
-        if(!response){
-            throw new ApiError(500, "Error deleting cover image from cloudinary")
-        }
-    }
+    const oldCoverImageURL = user.converImage;
 
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
@@ -409,6 +404,14 @@ const updateUserCoverImage = asyncHandler(async (req, res)=>{
         },
         {new: true}
     ).select("-password -refreshToken")
+
+    if (oldCoverImageURL) {
+      const response = await deleteFromCloudinary(user.coverImage);
+
+      if (!response) {
+        throw new ApiError(500, "Error deleting cover image from cloudinary");
+      }
+    }
 
     return res
     .status(200)
@@ -461,7 +464,7 @@ const getUserChannelProfile = asyncHandler(async (req, res)=>{
                 isSubscribed: {
                     $cond: {
                         if: {$in: [req.user?._id, "$subscribers.subscriber"]},
-                        // am I(req.user?._id) is the list subscribers of the incoming document (user). it checks within the subscriber(object) field of each subscriber.
+                        // am I(req.user?._id) is the list subscribers of the incoming document (user). it checks within the subscriber(object) field of each subscriber document.
                         // in can check for objects as well as arrays
                         then: true,
                         else: false

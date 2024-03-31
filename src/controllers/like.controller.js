@@ -192,7 +192,7 @@ const getLikedVideos = asyncHandler(async (req, res)=>{
         },
         {
             $addFields:{
-                likeCount: {
+                likedVideosCount: {
                     $size: "$videos"
                 }
             }
@@ -200,7 +200,7 @@ const getLikedVideos = asyncHandler(async (req, res)=>{
         {
             $project: {
                 videos: 1,
-                likeCount: 1
+                likedVideosCount: 1
             }
         }
     ])

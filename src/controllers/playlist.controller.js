@@ -76,7 +76,7 @@ const addVideoToPlaylist = asyncHandler(async (req, res)=>{
 
     // const newPlaylist = await Playlist.findById(playlist._id);
 
-    const newPlaylist = await Playlist.findByIdAndUpdate(
+    const updatedPlaylist = await Playlist.findByIdAndUpdate(
         playlistId,
         {
             $set: {
@@ -86,14 +86,14 @@ const addVideoToPlaylist = asyncHandler(async (req, res)=>{
         {new: true}
     )
 
-    if(!newPlaylist){
+    if(!updatedPlaylist){
         throw new ApiResponse(500, "Something went wrong while adding video to the playlist");
     }
 
     return res 
     .status(200)
     .json(
-        new ApiResponse(200, newPlaylist, "Video added to the playlist successfully!")
+        new ApiResponse(200, updatedPlaylist, "Video added to the playlist successfully!")
     )    
 })
 
@@ -174,11 +174,23 @@ const getUserPlaylists = asyncHandler(async (req, res)=>{
         },
         {
             $project: {
-                owner: 1, 
                 playlists: 1
             }
         }
     ])
+
+    // const userPlaylists = await User.findById(userId)
+    //   .populate({
+    //     path: "playlists",
+    //     populate: {
+    //       path: "owner",
+    //       select: "fullName username avatar",
+    //     },
+    //     populate: {
+    //       path: "videos",
+    //     },
+    //   })
+    //   .select("playlists");
 
     return res
     .status(200)
@@ -347,7 +359,7 @@ const deletePlaylist = asyncHandler(async (req, res)=>{
         _id: playlistId
     })
 
-    if(!(await Playlist.findById(playlistId))){
+    if((await Playlist.findById(playlistId))){
         throw new ApiError(500, "Something went wrong while deleting the playlist")
     }
 

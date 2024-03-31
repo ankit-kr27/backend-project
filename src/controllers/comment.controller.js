@@ -49,7 +49,7 @@ const getVideoComments = asyncHandler(async (req, res) =>{
      */
 
     const videoId = req.params
-    let {page = 1, limit = 10} = req.query
+    let {page = 1, limit = 10} = req.query  // default if explicitly not provided
 
     page = Number(page)
     limit = Number(page)

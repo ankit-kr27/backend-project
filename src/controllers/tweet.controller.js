@@ -1,6 +1,6 @@
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import {Tweet} from "../models/tweet.model.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js"
@@ -93,14 +93,14 @@ const updateTweet = asyncHandler(async (req, res)=>{
         throw new ApiError(404, "Missing tweet content to be updated");
     }
 
-    // checking if tweet exists or not
-    let tweet;
-    try{
-        tweet = await Tweet.findById(tweetId)
-        if(!tweet) throw Error  // we are doing this explicitly because when we were passing any valid object id, it wasn't throwing any error and was returning an empty tweet object
-    }
-    catch(err){
+    if(!isValidObjectId(tweetId)){
         throw new ApiError(401, "Invalid tweet id");
+    }
+
+    const tweet = await Tweet.findById(tweetId);
+
+    if(!tweet){
+        throw new ApiError(404, "Couldn't find tweet");
     }
 
     // IF SOMEONE IS TRYING TO UPDATE SOMEONE ELSE'S TWEET
@@ -138,13 +138,14 @@ const deleteTweet = asyncHandler(async (req, res)=>{
     }
 
     // checking if tweet exists or not
-    let tweet;
-    try{
-        tweet = await Tweet.findById(tweetId)
-        if(!tweet) throw Error  // we are doing this explicitly because when we were passing any valid object id, it wasn't throwing any error and was returning an empty tweet object
-    }
-    catch(err){
+    if (!isValidObjectId(tweetId)) {
         throw new ApiError(401, "Invalid tweet id");
+    }
+
+    const tweet = await Tweet.findById(tweetId);
+
+    if (!tweet) {
+        throw new ApiError(404, "Couldn't find tweet");
     }
 
     // IF SOMEONE IS TRYING TO UPDATE SOMEONE ELSE'S TWEET

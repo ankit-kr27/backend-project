@@ -10,7 +10,7 @@ router.use(verifyJWT);
 router.route("/").post(upload.fields([
     {
         name: "videoFile",
-        maxCount: 1
+        maxCount: 1,
     },
     {
         name: "thumbnail",

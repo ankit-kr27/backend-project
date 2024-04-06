@@ -142,6 +142,10 @@ const loginUser = asyncHandler(async (req, res)=>{
         throw new ApiError(400, "username or email is required");
     }
 
+    if(!password){
+        throw new ApiError(400, "password is required");
+    }
+
     const user = await User.findOne({
         $or: [{username}, {email}]  // $or is provided by mongoDB and array of objects is passed
     })
@@ -235,7 +239,7 @@ const refreshAccessToken = asyncHandler(async (req, res)=>{
         throw new ApiError(401, "Unauthorized request");    // If a user is not holding the refresh token in the cookies, they are not logged in.
     }
 
-    try {   // if RT is expired jwt.verify will return an error and will be caught by the block
+    try {   // if RT is expired jwt.verify will return an error and will be caught by the catch block
         const decodedToken = jwt.verify(
             incomingRefreshToken,
             process.env.REFRESH_TOKEN_SECRET
@@ -279,6 +283,10 @@ const refreshAccessToken = asyncHandler(async (req, res)=>{
 
 const changeCurrentPassword = asyncHandler(async (req, res)=>{
     const {oldPassword, newPassword} = req.body;
+
+    if(!(oldPassword && newPassword)){
+        throw new ApiError(400, "All fields are required");
+    }
 
     const user = await User.findById(req.user?._id);    // user has been added to the req object while logging in via auth middleware
 
